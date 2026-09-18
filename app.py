@@ -1,11 +1,16 @@
-
 """Main Streamlit application for AI Study Pack Generator."""
+
+import os
 
 import streamlit as st
 
 from prompt import build_request_dict
 from workflow import generate_study_pack
 
+
+# ============================================================
+# APP CONFIGURATION
+# ============================================================
 
 APP_TITLE = "AI Study Pack Generator"
 
@@ -17,7 +22,17 @@ st.set_page_config(
 )
 
 
-def validate_inputs(subject, topic, mcq_count, short_count):
+# ============================================================
+# INPUT VALIDATION
+# ============================================================
+
+def validate_inputs(
+    subject,
+    topic,
+    mcq_count,
+    short_count,
+):
+
     if not subject.strip():
         return "Please enter a subject."
 
@@ -28,20 +43,63 @@ def validate_inputs(subject, topic, mcq_count, short_count):
         return "MCQ count must be between 1 and 30."
 
     if not 0 <= int(short_count) <= 15:
-        return "Short-answer count must be between 0 and 15."
+        return (
+            "Short-answer count must be between 0 and 15."
+        )
 
     return None
 
 
+# ============================================================
+# GROQ API KEY
+# ============================================================
+
+def get_groq_api_key():
+    """
+    Read GROQ_API_KEY from environment variables
+    or Streamlit Secrets.
+    """
+
+    key = os.getenv(
+        "GROQ_API_KEY",
+        "",
+    ).strip()
+
+    if key:
+        return key
+
+    try:
+        return str(
+            st.secrets["GROQ_API_KEY"]
+        ).strip()
+
+    except Exception:
+        return ""
+
+
+# ============================================================
+# PAGE HEADER
+# ============================================================
+
 st.title("🎓 AI Study Pack Generator")
+
 st.write(
-    "Generate a personalized study pack through a five-stage AI workflow:"
-)
-st.caption(
-    "Planning → Content Generation → Assessment → Review → Refinement"
+    "Generate a personalized study pack through "
+    "a five-stage AI workflow:"
 )
 
+st.caption(
+    "Planning → Content Generation → Assessment → "
+    "Review → Refinement"
+)
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
 with st.sidebar:
+
     st.header("Student Profile")
 
     subject = st.text_input(
@@ -71,12 +129,23 @@ with st.sidebar:
 
     level = st.selectbox(
         "Student Level",
-        ["Beginner", "Intermediate", "Advanced"],
+        [
+            "Beginner",
+            "Intermediate",
+            "Advanced",
+        ],
     )
 
     preparation_time = st.selectbox(
         "Available Preparation Time",
-        ["1 day", "3 days", "1 week", "2 weeks", "1 month", "Custom"],
+        [
+            "1 day",
+            "3 days",
+            "1 week",
+            "2 weeks",
+            "1 month",
+            "Custom",
+        ],
     )
 
     mcq_count = st.slider(
@@ -88,7 +157,12 @@ with st.sidebar:
 
     mcq_difficulty = st.selectbox(
         "MCQ Difficulty",
-        ["Easy", "Medium", "Hard", "Mixed"],
+        [
+            "Easy",
+            "Medium",
+            "Hard",
+            "Mixed",
+        ],
     )
 
     short_question_count = st.slider(
@@ -100,7 +174,11 @@ with st.sidebar:
 
     output_style = st.selectbox(
         "Output Style",
-        ["Detailed", "Balanced", "Quick Revision"],
+        [
+            "Detailed",
+            "Balanced",
+            "Quick Revision",
+        ],
     )
 
     generate_button = st.button(
@@ -110,11 +188,20 @@ with st.sidebar:
     )
 
 
+# ============================================================
+# SESSION STATE
+# ============================================================
+
 if "workflow_state" not in st.session_state:
     st.session_state.workflow_state = None
 
 
+# ============================================================
+# GENERATE STUDY PACK
+# ============================================================
+
 if generate_button:
+
     error = validate_inputs(
         subject,
         topic,
@@ -123,8 +210,11 @@ if generate_button:
     )
 
     if error:
+
         st.error(error)
+
     else:
+
         request = build_request_dict(
             subject,
             topic,
@@ -137,14 +227,19 @@ if generate_button:
             output_style,
         )
 
-        api_key = st.secrets.get("GEMINI_API_KEY", "")
+        api_key = get_groq_api_key()
 
         if not api_key:
+
             st.error(
-                "GEMINI_API_KEY is missing. Add it in Streamlit Secrets."
+                "GROQ_API_KEY is missing. "
+                "Add it in Streamlit Secrets."
             )
+
         else:
+
             status = st.empty()
+
             progress = st.progress(0)
 
             stage_numbers = {
@@ -155,19 +250,44 @@ if generate_button:
                 "Refinement": 5,
             }
 
-            def update_progress(stage, state):
-                number = stage_numbers.get(stage, 0)
+            def update_progress(
+                stage,
+                state,
+            ):
+
+                number = stage_numbers.get(
+                    stage,
+                    0,
+                )
 
                 if state == "running":
-                    status.info(f"🔄 {stage} stage is running...")
+
+                    status.info(
+                        f"🔄 {stage} stage is running..."
+                    )
+
                 elif state == "completed":
-                    status.success(f"✅ {stage} stage completed.")
-                    progress.progress(number / 5)
+
+                    status.success(
+                        f"✅ {stage} stage completed."
+                    )
+
+                    progress.progress(
+                        number / 5
+                    )
+
                 elif state == "failed":
-                    status.error(f"❌ {stage} stage failed.")
+
+                    status.error(
+                        f"❌ {stage} stage failed."
+                    )
 
             try:
-                with st.spinner("Running AI workflow..."):
+
+                with st.spinner(
+                    "Running Groq AI workflow..."
+                ):
+
                     result = generate_study_pack(
                         request,
                         api_key,
@@ -175,20 +295,35 @@ if generate_button:
                     )
 
                 st.session_state.workflow_state = result
-                status.success("🎉 Study pack generated successfully!")
+
+                status.success(
+                    "🎉 Study pack generated successfully!"
+                )
+
                 progress.progress(1.0)
 
             except Exception as exc:
-                st.error(f"Workflow stopped: {exc}")
 
+                st.error(
+                    f"Workflow stopped: {exc}"
+                )
+
+
+# ============================================================
+# DISPLAY RESULTS
+# ============================================================
 
 state = st.session_state.workflow_state
 
+
 if state:
+
     st.divider()
+
     st.subheader("🔄 AI Workflow")
 
     cols = st.columns(5)
+
     stages = [
         ("1", "Planning"),
         ("2", "Content"),
@@ -197,9 +332,21 @@ if state:
         ("5", "Refinement"),
     ]
 
-    for col, (number, name) in zip(cols, stages):
+    for col, (number, name) in zip(
+        cols,
+        stages,
+    ):
+
         with col:
-            st.success(f"{number}. {name}")
+
+            st.success(
+                f"{number}. {name}"
+            )
+
+
+    # --------------------------------------------------------
+    # RESULT TABS
+    # --------------------------------------------------------
 
     tabs = st.tabs(
         [
@@ -211,20 +358,40 @@ if state:
         ]
     )
 
+
     with tabs[0]:
-        st.markdown(state.plan)
+
+        st.markdown(
+            state.plan
+        )
+
 
     with tabs[1]:
-        st.markdown(state.content)
+
+        st.markdown(
+            state.content
+        )
+
 
     with tabs[2]:
-        st.markdown(state.assessment)
+
+        st.markdown(
+            state.assessment
+        )
+
 
     with tabs[3]:
-        st.markdown(state.review)
+
+        st.markdown(
+            state.review
+        )
+
 
     with tabs[4]:
-        st.markdown(state.final_pack)
+
+        st.markdown(
+            state.final_pack
+        )
 
         st.download_button(
             "⬇️ Download Study Pack",
