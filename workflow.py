@@ -22,6 +22,11 @@ from prompt import (
 # ============================================================
 
 DEFAULT_MODEL = "openai/gpt-oss-120b"
+
+# Your current Groq limit is 8,000 TPM.
+# We deliberately stay below that limit.
+SAFE_TOKEN_BUDGET = 7000
+
 MAX_RETRIES = 2
 
 
@@ -45,7 +50,7 @@ class WorkflowState:
 # ============================================================
 
 def get_api_key(streamlit_secrets=None):
-    """Read the Groq API key from environment variables or Streamlit Secrets."""
+    """Read Groq API key from environment variables or Streamlit Secrets."""
 
     key = os.getenv("GROQ_API_KEY", "").strip()
 
@@ -79,19 +84,94 @@ def create_client(api_key):
 
 
 # ============================================================
-# GROQ API CALL
+# CONTEXT COMPRESSION
+# ============================================================
+
+def trim_text(text, max_chars):
+    """
+    Keep workflow context within a safe size.
+
+    We use characters instead of tokenizers so the application
+    does not require another dependency.
+    """
+
+    if not text:
+        return ""
+
+    text = str(text).strip()
+
+    if len(text) <= max_chars:
+        return text
+
+    return (
+        text[:max_chars]
+        + "\n\n[Earlier content truncated to preserve API limits.]"
+    )
+
+
+def estimate_tokens(text):
+    """
+    Conservative token estimate.
+
+    Approximately 4 characters per token is used.
+    """
+
+    if not text:
+        return 0
+
+    return max(1, len(text) // 4)
+
+
+def build_safe_prompt(prompt, max_output_tokens):
+    """
+    Ensure the request stays comfortably below the
+    organization's 8K TPM limit.
+
+    The prompt itself is already compact because previous
+    workflow outputs are trimmed before being inserted.
+    """
+
+    estimated_input = estimate_tokens(prompt)
+
+    requested_total = (
+        estimated_input + max_output_tokens
+    )
+
+    if requested_total <= SAFE_TOKEN_BUDGET:
+        return prompt, max_output_tokens
+
+    available_output = (
+        SAFE_TOKEN_BUDGET - estimated_input
+    )
+
+    # Never request an unusably tiny completion.
+    available_output = max(
+        800,
+        available_output,
+    )
+
+    return prompt, available_output
+
+
+# ============================================================
+# GROQ CALL
 # ============================================================
 
 def call_groq(
     client,
     prompt,
     temperature=0.4,
-    max_output_tokens=12000,
+    max_output_tokens=2000,
 ):
     """
-    Send a request to Groq using OpenAI GPT-OSS 120B.
-    Includes bounded retries for temporary failures.
+    Call Groq while keeping the combined request
+    safely below the current TPM limit.
     """
+
+    safe_prompt, safe_output_tokens = build_safe_prompt(
+        prompt,
+        max_output_tokens,
+    )
 
     last_error = None
 
@@ -109,13 +189,13 @@ def call_groq(
                     },
                     {
                         "role": "user",
-                        "content": prompt,
+                        "content": safe_prompt,
                     },
                 ],
 
                 temperature=temperature,
 
-                max_completion_tokens=max_output_tokens,
+                max_completion_tokens=safe_output_tokens,
 
                 reasoning_effort="medium",
 
@@ -141,6 +221,21 @@ def call_groq(
 
             last_error = exc
 
+            error_text = str(exc).lower()
+
+            # A request-size / TPM error will not be fixed
+            # by retrying the exact same request.
+            if (
+                "rate_limit_exceeded" in error_text
+                or "request too large" in error_text
+                or "413" in error_text
+            ):
+                raise RuntimeError(
+                    "Groq rejected the request because it exceeded "
+                    "the available token limit. The workflow context "
+                    "should be reduced."
+                ) from exc
+
             if attempt < MAX_RETRIES:
                 time.sleep(
                     1.5 * (attempt + 1)
@@ -162,9 +257,9 @@ def run_stage(
     prompt,
     progress_callback,
     temperature=0.4,
-    max_output_tokens=12000,
+    max_output_tokens=2000,
 ):
-    """Execute one workflow stage and handle errors."""
+    """Execute one workflow stage."""
 
     try:
 
@@ -209,7 +304,7 @@ def run_stage(
 
 
 # ============================================================
-# COMPLETE STUDY PACK WORKFLOW
+# COMPLETE WORKFLOW
 # ============================================================
 
 def generate_study_pack(
@@ -218,17 +313,16 @@ def generate_study_pack(
     progress_callback=None,
 ):
     """
-    Execute the complete sequential AI workflow:
+    Execute:
 
-    Planning
-        ↓
-    Content Generation
-        ↓
-    Assessment
-        ↓
-    Review
-        ↓
-    Refinement
+    1. Planning
+    2. Content Generation
+    3. Assessment
+    4. Review
+    5. Refinement
+
+    Previous outputs are deliberately compressed before
+    being passed to later stages.
     """
 
     client = create_client(api_key)
@@ -237,9 +331,10 @@ def generate_study_pack(
         request=request
     )
 
-    # --------------------------------------------------------
+
+    # ========================================================
     # STAGE 1 — PLANNING
-    # --------------------------------------------------------
+    # ========================================================
 
     state.plan = run_stage(
         client,
@@ -248,12 +343,18 @@ def generate_study_pack(
         planning_prompt(request),
         progress_callback,
         temperature=0.25,
-        max_output_tokens=7000,
+        max_output_tokens=1800,
     )
 
-    # --------------------------------------------------------
+
+    # ========================================================
     # STAGE 2 — CONTENT GENERATION
-    # --------------------------------------------------------
+    # ========================================================
+
+    compact_plan = trim_text(
+        state.plan,
+        5000,
+    )
 
     state.content = run_stage(
         client,
@@ -261,16 +362,27 @@ def generate_study_pack(
         "Content Generation",
         content_prompt(
             request,
-            state.plan,
+            compact_plan,
         ),
         progress_callback,
-        temperature=0.45,
-        max_output_tokens=12000,
+        temperature=0.4,
+        max_output_tokens=2400,
     )
 
-    # --------------------------------------------------------
+
+    # ========================================================
     # STAGE 3 — ASSESSMENT
-    # --------------------------------------------------------
+    # ========================================================
+
+    compact_plan = trim_text(
+        state.plan,
+        3000,
+    )
+
+    compact_content = trim_text(
+        state.content,
+        7000,
+    )
 
     state.assessment = run_stage(
         client,
@@ -278,17 +390,33 @@ def generate_study_pack(
         "Assessment",
         assessment_prompt(
             request,
-            state.plan,
-            state.content,
+            compact_plan,
+            compact_content,
         ),
         progress_callback,
-        temperature=0.5,
-        max_output_tokens=12000,
+        temperature=0.45,
+        max_output_tokens=2800,
     )
 
-    # --------------------------------------------------------
-    # STAGE 4 — REVIEW / QUALITY CONTROL
-    # --------------------------------------------------------
+
+    # ========================================================
+    # STAGE 4 — REVIEW
+    # ========================================================
+
+    compact_plan = trim_text(
+        state.plan,
+        2000,
+    )
+
+    compact_content = trim_text(
+        state.content,
+        5000,
+    )
+
+    compact_assessment = trim_text(
+        state.assessment,
+        7000,
+    )
 
     state.review = run_stage(
         client,
@@ -296,18 +424,39 @@ def generate_study_pack(
         "Review",
         review_prompt(
             request,
-            state.plan,
-            state.content,
-            state.assessment,
+            compact_plan,
+            compact_content,
+            compact_assessment,
         ),
         progress_callback,
         temperature=0.2,
-        max_output_tokens=9000,
+        max_output_tokens=1600,
     )
 
-    # --------------------------------------------------------
-    # STAGE 5 — REFINEMENT
-    # --------------------------------------------------------
+
+    # ========================================================
+    # STAGE 5 — FINAL REFINEMENT
+    # ========================================================
+
+    compact_plan = trim_text(
+        state.plan,
+        1500,
+    )
+
+    compact_content = trim_text(
+        state.content,
+        4000,
+    )
+
+    compact_assessment = trim_text(
+        state.assessment,
+        5500,
+    )
+
+    compact_review = trim_text(
+        state.review,
+        3500,
+    )
 
     state.final_pack = run_stage(
         client,
@@ -315,14 +464,15 @@ def generate_study_pack(
         "Refinement",
         refinement_prompt(
             request,
-            state.plan,
-            state.content,
-            state.assessment,
-            state.review,
+            compact_plan,
+            compact_content,
+            compact_assessment,
+            compact_review,
         ),
         progress_callback,
-        temperature=0.35,
-        max_output_tokens=15000,
+        temperature=0.3,
+        max_output_tokens=2800,
     )
+
 
     return state
