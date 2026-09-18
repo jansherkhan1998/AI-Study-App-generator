@@ -19,7 +19,7 @@ from prompt import (
 )
 
 
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 MAX_RETRIES = 2
 
 
