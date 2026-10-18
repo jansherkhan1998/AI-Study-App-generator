@@ -1,2 +1,3 @@
 streamlit>=1.40,<2
 groq>=0.30,<1
+supabase>=2.0.0
