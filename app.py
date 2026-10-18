@@ -53,7 +53,17 @@ def show_auth_page():
                     refresh_captcha()
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Login failed: {e}")
+                    # =========================================================================
+                    # REPLACED AREA START: Customized error handling for unconfirmed emails
+                    # =========================================================================
+                    error_msg = str(e)
+                    if "Email not confirmed" in error_msg:
+                        st.warning("✉️ Please check your email inbox and click the confirmation link before logging in!")
+                    else:
+                        st.error(f"❌ Login failed: {error_msg}")
+                    # =========================================================================
+                    # REPLACED AREA END
+                    # =========================================================================
                     refresh_captcha()
 
     with tab_register:
