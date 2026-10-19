@@ -13,7 +13,7 @@ import streamlit as st
 from prompt import SYSTEM_PROMPT, build_user_prompt
 
 
-MODEL_NAME = "llama-3.3-70b-versatile"
+MODEL_NAME = "openai/gpt-oss-120b"
 
 
 @dataclass
