@@ -3,8 +3,7 @@ Tab module for Roadmap view.
 """
 
 import streamlit as st
-from app import get_groq_api_key
-from workflow import call_groq_json
+from workflow import call_groq_json, get_groq_api_key
 
 
 def render_roadmap_tab():
