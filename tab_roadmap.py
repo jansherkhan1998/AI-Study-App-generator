@@ -1,6 +1,9 @@
-"""Tab 1: Day-by-Day Study Roadmap Generator."""
+"""
+Tab module for Roadmap view.
+"""
 
 import streamlit as st
+from app import get_groq_api_key
 from workflow import call_groq_json
 
 
@@ -20,6 +23,11 @@ def render_roadmap_tab():
         if not subject or not topic:
             st.warning("Please provide both subject and topic.")
         else:
+            api_key = get_groq_api_key()
+            if not api_key:
+                st.error("GROQ_API_KEY is missing. Add it in Streamlit Secrets.")
+                return
+
             with st.spinner("Building your daily study roadmap..."):
                 prompt = f"""
                 Create a structured study roadmap for Subject: '{subject}', Topic: '{topic}' over {prep_time} for a {level} student.
@@ -31,7 +39,7 @@ def render_roadmap_tab():
                 - "recommended_focus": string
                 """
                 try:
-                    sections = call_groq_json(prompt)
+                    sections = call_groq_json(prompt, api_key)
                     st.session_state["roadmap_sections"] = sections
                     st.session_state["roadmap_subject"] = subject
                     st.session_state["roadmap_topic"] = topic
