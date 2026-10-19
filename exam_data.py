@@ -22,14 +22,17 @@ EXAM_PATTERNS = {
             "English": {"mcqs": 10, "weightage": "10%"},
         },
     },
-    "NUMS": {
-        "total_mcqs": 150,
+   "NUMS": {
+        "total_mcqs": 200,
         "subjects": {
-            "Biology": {"mcqs": 52, "weightage": "35%"},
-            "Chemistry": {"mcqs": 38, "weightage": "25%"},
-            "Physics": {"mcqs": 38, "weightage": "25%"},
-            "English": {"mcqs": 22, "weightage": "15%"},
+            "Biology (Paper-I)": {"mcqs": 55, "weightage": "37.0%"},
+            "Chemistry (Paper-I)": {"mcqs": 40, "weightage": "26.5%"},
+            "Physics (Paper-I)": {"mcqs": 40, "weightage": "26.5%"},
+            "English (Paper-I)": {"mcqs": 15, "weightage": "10.0%"},
+            "Psychological Test (Paper-II)": {"mcqs": 50, "weightage": "5.0%"},
         },
+        "difficulty": {"Easy": "20%", "Moderate": "60%", "Hard": "20%"},
+        "cognitive_split": "70% Recall, 30% Application",
     },
     "NUST NET": {
         "total_mcqs": 200,
