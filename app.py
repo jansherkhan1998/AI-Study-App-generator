@@ -1,69 +1,31 @@
-import json
+"""Main Streamlit application for AI Study Pack Generator with Supabase Auth."""
+
+import os
 import random
 import streamlit as st
-from groq import Groq
 from supabase import create_client, Client
 
-# --- 1. PAGE CONFIGURATION ---
+from prompt import build_request_dict
+from workflow import generate_study_pack
+
+
+# ============================================================
+# APP CONFIGURATION
+# ============================================================
+
+APP_TITLE = "AI Study Pack Generator"
+
 st.set_page_config(
-    page_title="AI Study Pack Generator",
+    page_title=APP_TITLE,
     page_icon="🎓",
     layout="wide",
-    initial_sidebar_state="expanded"
 )
 
-# --- 2. CUSTOM CSS STYLING ---
-st.markdown("""
-    <style>
-    /* Main Theme Overrides */
-    .stApp {
-        background-color: #0e1117;
-        color: #e0e0e0;
-    }
-    
-    /* Card Container Styling */
-    .mcq-card {
-        background-color: #1a1f2c;
-        border: 1px solid #2d3748;
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    
-    .mcq-header {
-        font-size: 1.15rem;
-        font-weight: 600;
-        color: #63b3ed;
-        margin-bottom: 12px;
-    }
 
-    .mcq-option {
-        background-color: #242c3d;
-        border-radius: 6px;
-        padding: 8px 14px;
-        margin: 6px 0;
-        font-size: 0.95rem;
-    }
+# ============================================================
+# 1. SUPABASE INITIALIZATION
+# ============================================================
 
-    .answer-box {
-        background-color: #1e3a29;
-        border-left: 4px solid #48bb78;
-        padding: 10px 14px;
-        border-radius: 4px;
-        margin-top: 12px;
-        font-size: 0.9rem;
-    }
-
-    /* Sidebar Styling */
-    section[data-testid="stSidebar"] {
-        background-color: #131722;
-        border-right: 1px solid #2d3748;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- 3. SUPABASE INITIALIZATION ---
 @st.cache_resource
 def init_supabase() -> Client:
     url = st.secrets["supabase"]["SUPABASE_URL"]
@@ -72,14 +34,11 @@ def init_supabase() -> Client:
 
 supabase = init_supabase()
 
-# --- 4. GROQ CLIENT INITIALIZATION ---
-@st.cache_resource
-def init_groq():
-    return Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-groq_client = init_groq()
+# ============================================================
+# 2. CAPTCHA GENERATOR
+# ============================================================
 
-# --- 5. CAPTCHA GENERATOR ---
 def generate_captcha():
     if "captcha_num1" not in st.session_state or "captcha_num2" not in st.session_state:
         st.session_state["captcha_num1"] = random.randint(1, 10)
@@ -89,10 +48,14 @@ def refresh_captcha():
     st.session_state["captcha_num1"] = random.randint(1, 10)
     st.session_state["captcha_num2"] = random.randint(1, 10)
 
-# --- 6. AUTHENTICATION SYSTEM ---
+
+# ============================================================
+# 3. AUTHENTICATION SYSTEM
+# ============================================================
+
 def show_auth_page():
     st.title("🎓 AI Study Pack Generator")
-    st.caption("Sign in or create an account to start generating MCQ practice packs.")
+    st.subheader("Please sign in or register to continue")
 
     generate_captcha()
     num1 = st.session_state["captcha_num1"]
@@ -104,7 +67,7 @@ def show_auth_page():
     with tab_login:
         email = st.text_input("Email", key="login_email")
         password = st.text_input("Password", type="password", key="login_pass")
-        user_captcha = st.number_input(f"🤖 CAPTCHA: What is {num1} + {num2}?", step=1, key="login_captcha")
+        user_captcha = st.number_input(f"🤖 CAPTCHA Verification: What is {num1} + {num2}?", step=1, key="login_captcha")
 
         if st.button("Log In", type="primary"):
             if user_captcha != expected_sum:
@@ -128,7 +91,7 @@ def show_auth_page():
     with tab_register:
         reg_email = st.text_input("Email", key="reg_email")
         reg_pass = st.text_input("Password", type="password", key="reg_pass")
-        reg_captcha = st.number_input(f"🤖 CAPTCHA: What is {num1} + {num2}?", step=1, key="reg_captcha")
+        reg_captcha = st.number_input(f"🤖 CAPTCHA Verification: What is {num1} + {num2}?", step=1, key="reg_captcha")
 
         if st.button("Sign Up"):
             if reg_captcha != expected_sum:
@@ -143,107 +106,352 @@ def show_auth_page():
                     st.error(f"Registration failed: {e}")
                     refresh_captcha()
 
-# Block unauthenticated access
+
+# Block access if user is not authenticated
 if "user" not in st.session_state:
     show_auth_page()
     st.stop()
 
-# --- 7. MAIN APPLICATION (LOGGED IN) ---
+
+# ============================================================
+# 4. INPUT VALIDATION
+# ============================================================
+
+def validate_inputs(
+    subject,
+    topic,
+    mcq_count,
+    short_count,
+):
+    if not subject.strip():
+        return "Please enter a subject."
+
+    if not topic.strip():
+        return "Please enter a topic or chapter."
+
+    if not 1 <= int(mcq_count) <= 30:
+        return "MCQ count must be between 1 and 30."
+
+    if not 0 <= int(short_count) <= 15:
+        return "Short-answer count must be between 0 and 15."
+
+    return None
+
+
+# ============================================================
+# 5. GROQ API KEY
+# ============================================================
+
+def get_groq_api_key():
+    """Read GROQ_API_KEY from environment variables or Streamlit Secrets."""
+    key = os.getenv("GROQ_API_KEY", "").strip()
+
+    if key:
+        return key
+
+    try:
+        return str(st.secrets["GROQ_API_KEY"]).strip()
+    except Exception:
+        return ""
+
+
+# ============================================================
+# 6. PAGE HEADER & SIDEBAR LOGOUT
+# ============================================================
+
 user = st.session_state["user"]
 
-# Sidebar Profile & Control
-st.sidebar.markdown("### 👤 User Profile")
-st.sidebar.write(f"Logged in as:\n`{user.email}`")
-if st.sidebar.button("Log Out", type="secondary"):
+st.sidebar.write(f"Logged in as: **{user.email}**")
+if st.sidebar.button("Log Out"):
     supabase.auth.sign_out()
     del st.session_state["user"]
     st.rerun()
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 📌 Workspace")
-st.sidebar.info("Generate multiple-choice question packs tailored to any subject and topic.")
+st.title("🎓 AI Study Pack Generator")
 
-# Header
-st.title("🎯 MCQ Practice Pack Generator")
-st.write("Configure your subject and parameters below to instantly generate high-quality multiple-choice questions.")
+st.write(
+    "Generate a personalized study pack through "
+    "a five-stage AI workflow:"
+)
 
-# Generation Settings Form
-with st.form("mcq_generator_form"):
-    col1, col2 = st.columns(2)
-    with col1:
-        subject = st.text_input("Subject", placeholder="e.g., Biology, Computer Science, World History")
-    with col2:
-        topic = st.text_input("Topic", placeholder="e.g., Photosynthesis, Data Structures, WWII")
-    
-    col3, col4 = st.columns(2)
-    with col3:
-        num_questions = st.slider("Number of MCQs", min_value=3, max_value=20, value=5)
-    with col4:
-        difficulty = st.selectbox("Difficulty Level", ["Beginner", "Intermediate", "Advanced"])
+st.caption(
+    "Planning → Content Generation → Assessment → "
+    "Review → Refinement"
+)
 
-    submit_button = st.form_submit_button("⚡ Generate MCQ Pack", type="primary")
 
-# --- 8. AI GENERATION LOGIC ---
-if submit_button:
-    if not subject.strip() or not topic.strip():
-        st.warning("⚠️ Please provide both a subject and a topic.")
+# ============================================================
+# 7. WORKFLOW FORM SIDEBAR
+# ============================================================
+
+with st.sidebar:
+    st.header("Student Profile")
+
+    subject = st.text_input(
+        "Subject",
+        placeholder="e.g. Physics",
+    )
+
+    topic = st.text_input(
+        "Topic / Chapter",
+        placeholder="e.g. Electromagnetic Induction",
+    )
+
+    exam_type = st.selectbox(
+        "Exam Type",
+        [
+            "MDCAT",
+            "ECAT",
+            "NTS",
+            "NUST NET",
+            "GAT",
+            "CSS",
+            "University Exam",
+            "School/College Exam",
+            "Other",
+        ],
+    )
+
+    level = st.selectbox(
+        "Student Level",
+        [
+            "Beginner",
+            "Intermediate",
+            "Advanced",
+        ],
+    )
+
+    preparation_time = st.selectbox(
+        "Available Preparation Time",
+        [
+            "1 day",
+            "3 days",
+            "1 week",
+            "2 weeks",
+            "1 month",
+            "Custom",
+        ],
+    )
+
+    mcq_count = st.slider(
+        "Number of MCQs",
+        min_value=1,
+        max_value=30,
+        value=10,
+    )
+
+    mcq_difficulty = st.selectbox(
+        "MCQ Difficulty",
+        [
+            "Easy",
+            "Medium",
+            "Hard",
+            "Mixed",
+        ],
+    )
+
+    short_question_count = st.slider(
+        "Number of Short Questions",
+        min_value=0,
+        max_value=15,
+        value=5,
+    )
+
+    output_style = st.selectbox(
+        "Output Style",
+        [
+            "Detailed",
+            "Balanced",
+            "Quick Revision",
+        ],
+    )
+
+    generate_button = st.button(
+        "🚀 Generate Study Pack",
+        type="primary",
+        use_container_width=True,
+    )
+
+
+# ============================================================
+# 8. SESSION STATE
+# ============================================================
+
+if "workflow_state" not in st.session_state:
+    st.session_state.workflow_state = None
+
+
+# ============================================================
+# 9. GENERATE STUDY PACK
+# ============================================================
+
+if generate_button:
+    error = validate_inputs(
+        subject,
+        topic,
+        mcq_count,
+        short_question_count,
+    )
+
+    if error:
+        st.error(error)
+
     else:
-        with st.spinner("🧠 Generating your MCQ pack with Groq AI..."):
-            prompt = f"""
-            You are an expert exam designer. Generate {num_questions} Multiple-Choice Questions (MCQs) on the subject '{subject}', specifically focused on '{topic}'.
-            Difficulty Level: {difficulty}.
+        request = build_request_dict(
+            subject,
+            topic,
+            exam_type,
+            level,
+            preparation_time,
+            mcq_count,
+            mcq_difficulty,
+            short_question_count,
+            output_style,
+        )
 
-            CRITICAL REQUIREMENT: Return ONLY a valid JSON array containing objects with these exact keys:
-            - "id": integer starting from 1
-            - "question": string
-            - "options": list of 4 strings (e.g. ["A) ...", "B) ...", "C) ...", "D) ..."])
-            - "answer": string indicating the correct option
-            - "explanation": concise string explaining why the answer is correct
+        api_key = get_groq_api_key()
 
-            Do NOT return markdown formatting inside or outside the JSON. Return RAW JSON ONLY.
-            """
+        if not api_key:
+            st.error(
+                "GROQ_API_KEY is missing. "
+                "Add it in Streamlit Secrets."
+            )
+
+        else:
+            status = st.empty()
+            progress = st.progress(0)
+
+            stage_numbers = {
+                "Planning": 1,
+                "Content Generation": 2,
+                "Assessment": 3,
+                "Review": 4,
+                "Refinement": 5,
+            }
+
+            def update_progress(
+                stage,
+                state,
+            ):
+                number = stage_numbers.get(
+                    stage,
+                    0,
+                )
+
+                if state == "running":
+                    status.info(
+                        f"🔄 {stage} stage is running..."
+                    )
+
+                elif state == "completed":
+                    status.success(
+                        f"✅ {stage} stage completed."
+                    )
+                    progress.progress(
+                        number / 5
+                    )
+
+                elif state == "failed":
+                    status.error(
+                        f"❌ {stage} stage failed."
+                    )
 
             try:
-                response = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {"role": "system", "content": "You output only structured JSON arrays of multiple-choice questions without any markdown wrapping or explanatory text."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3
+                with st.spinner(
+                    "Running Groq AI workflow..."
+                ):
+                    result = generate_study_pack(
+                        request,
+                        api_key,
+                        progress_callback=update_progress,
+                    )
+
+                st.session_state.workflow_state = result
+
+                status.success(
+                    "🎉 Study pack generated successfully!"
                 )
-                
-                raw_text = response.choices[0].message.content.strip()
-                # Strip potential markdown fences if returned
-                if raw_text.startswith("```json"):
-                    raw_text = raw_text[7:]
-                if raw_text.startswith("```"):
-                    raw_text = raw_text[3:]
-                if raw_text.endswith("```"):
-                    raw_text = raw_text[:-3]
+                progress.progress(1.0)
 
-                st.session_state["generated_mcqs"] = json.loads(raw_text.strip())
-                st.session_state["current_subject"] = subject
-                st.session_state["current_topic"] = topic
-            except Exception as e:
-                st.error(f"❌ Generation failed: {e}")
+            except Exception as exc:
+                st.error(
+                    f"Workflow stopped: {exc}"
+                )
 
-# --- 9. DISPLAY GENERATED MCQS ---
-if "generated_mcqs" in st.session_state:
-    st.markdown("---")
-    st.subheader(f"📖 Generated Pack: {st.session_state['current_subject']} — {st.session_state['current_topic']}")
-    
-    for item in st.session_state["generated_mcqs"]:
-        st.markdown(f"""
-            <div class="mcq-card">
-                <div class="mcq-header">Q{item['id']}. {item['question']}</div>
-                <div class="mcq-option">A) {item['options'][0]}</div>
-                <div class="mcq-option">B) {item['options'][1]}</div>
-                <div class="mcq-option">C) {item['options'][2]}</div>
-                <div class="mcq-option">D) {item['options'][3]}</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        with st.expander(f"View Correct Answer & Explanation for Q{item['id']}"):
-            st.markdown(f"**Correct Answer:** {item['answer']}")
-            st.markdown(f"**Explanation:** {item['explanation']}")
+
+# ============================================================
+# 10. DISPLAY RESULTS
+# ============================================================
+
+state = st.session_state.workflow_state
+
+if state:
+    st.divider()
+
+    st.subheader("🔄 AI Workflow")
+
+    cols = st.columns(5)
+
+    stages = [
+        ("1", "Planning"),
+        ("2", "Content"),
+        ("3", "Assessment"),
+        ("4", "Review"),
+        ("5", "Refinement"),
+    ]
+
+    for col, (number, name) in zip(
+        cols,
+        stages,
+    ):
+        with col:
+            st.success(
+                f"{number}. {name}"
+            )
+
+    # --------------------------------------------------------
+    # RESULT TABS
+    # --------------------------------------------------------
+
+    tabs = st.tabs(
+        [
+            "🎯 Plan",
+            "📚 Content",
+            "📝 Assessment",
+            "🔎 Review",
+            "🎓 Final Pack",
+        ]
+    )
+
+    with tabs[0]:
+        st.markdown(
+            state.plan
+        )
+
+    with tabs[1]:
+        st.markdown(
+            state.content
+        )
+
+    with tabs[2]:
+        st.markdown(
+            state.assessment
+        )
+
+    with tabs[3]:
+        st.markdown(
+            state.review
+        )
+
+    with tabs[4]:
+        st.markdown(
+            state.final_pack
+        )
+
+        st.download_button(
+            "⬇️ Download Study Pack",
+            data=state.final_pack,
+            file_name="ai_study_pack.md",
+            mime="text/markdown",
+            use_container_width=True,
+        )
