@@ -59,9 +59,7 @@ def generate_study_pack(
     api_key: str,
     progress_callback: Optional[Callable[[str, str], None]] = None,
 ) -> WorkflowResult:
-    """
-    Runs a 5-stage sequential AI generation pipeline using Groq.
-    """
+    """Runs a 5-stage sequential AI generation pipeline using Groq."""
     client = Groq(api_key=api_key)
     base_user_prompt = build_user_prompt(request)
 
