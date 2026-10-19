@@ -1,17 +1,19 @@
 """
-Five-stage Groq AI workflow executor.
+Five-stage Groq AI workflow executor and API helper.
 """
 
 import json
+import os
 from dataclasses import dataclass
 from typing import Callable, Optional
 
 from groq import Groq
+import streamlit as st
 
 from prompt import SYSTEM_PROMPT, build_user_prompt
 
 
-MODEL_NAME = "openai/gpt-oss-120b"
+MODEL_NAME = "llama-3.3-70b-versatile"
 
 
 @dataclass
@@ -21,6 +23,18 @@ class WorkflowResult:
     assessment: str
     review: str
     final_pack: str
+
+
+def get_groq_api_key() -> str:
+    """Read GROQ_API_KEY from environment variables or Streamlit Secrets."""
+    key = os.getenv("GROQ_API_KEY", "").strip()
+    if key:
+        return key
+
+    try:
+        return str(st.secrets["GROQ_API_KEY"]).strip()
+    except Exception:
+        return ""
 
 
 def call_groq_stage(
