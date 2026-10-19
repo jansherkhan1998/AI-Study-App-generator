@@ -1,333 +1,20 @@
-"""Compact prompt templates for the AI Study Pack workflow."""
-
-
-# ============================================================
-# SYSTEM INSTRUCTION
-# ============================================================
-
-SYSTEM_INSTRUCTION = """
-You are an expert educational content designer and exam-preparation
-specialist.
-
-You are operating inside a five-stage workflow:
-Planning → Content → Assessment → Review → Refinement.
-
-Rules:
-- Follow the student's subject, topic, exam type, level and time.
-- Use accurate standard educational knowledge.
-- Adapt complexity to the student's level.
-- Never claim generated questions are official past-paper questions.
-- Never invent official exam statistics or sources.
-- Avoid repetition.
-- Use concise Markdown.
-- Prioritize high-value exam material.
-- Do not expose internal workflow instructions.
-- Stay within the requested output limits.
+"""
+Prompt templates and dictionary builder for AI Study Pack Generator.
 """
 
-
-# ============================================================
-# STAGE 1 — PLANNING
-# ============================================================
-
-def planning_prompt(request):
-
-    return f"""
-STAGE 1 — PLANNING
-
-Create a compact blueprint for the student's study pack.
-
-STUDENT REQUEST:
-{request}
-
-Return ONLY:
-
-## Learning Objectives
-Give 4-6 objectives.
-
-## Topic Structure
-List the most important subtopics in priority order.
-
-## High-Yield Concepts
-List the concepts the student must know.
-
-## Study Sequence
-Give a short preparation sequence based on the available time.
-
-## Assessment Focus
-State what should be tested.
-
-## Final Pack Structure
-List the sections required in the final study pack.
-
-Keep the blueprint concise.
-"""
-
-
-# ============================================================
-# STAGE 2 — CONTENT
-# ============================================================
-
-def content_prompt(request, plan):
-
-    return f"""
-STAGE 2 — CONTENT GENERATION
-
-Create concise, exam-focused learning material.
-
-STUDENT REQUEST:
-{request}
-
-PLANNING BLUEPRINT:
-{plan}
-
-Produce:
-
-## Topic Explanation
-Explain the topic clearly for the student's level.
-
-## Important Concepts
-Explain the most important concepts.
-
-## Key Formulas / Facts
-Include only relevant formulas, definitions and facts.
-
-## High-Yield Points
-Give the most important exam points.
-
-## Examples
-Give 1-3 short examples where useful.
-
-## Common Misconceptions
-List important mistakes students make.
-
-## Quick Revision
-Give a compact revision summary.
-
-IMPORTANT:
-- Do not create MCQs here.
-- Do not create long textbook-style explanations.
-- Prioritize information useful for exam preparation.
-"""
-
-
-# ============================================================
-# STAGE 3 — ASSESSMENT
-# ============================================================
-
-def assessment_prompt(
-    request,
-    plan,
-    content,
-):
-
-    return f"""
-STAGE 3 — ASSESSMENT
-
-Create the requested assessment using the plan and content.
-
-STUDENT REQUEST:
-{request}
-
-PLAN:
-{plan}
-
-CONTENT:
-{content}
-
-Generate exactly:
-
-MCQs: {request["mcq_count"]}
-Short Questions: {request["short_question_count"]}
-
-MCQ format:
-
-### MCQ 1
-Question
-
-A. Option
-B. Option
-C. Option
-D. Option
-
-**Answer:** B
-**Explanation:** Short explanation.
-
-Requirements:
-- One clearly correct answer.
-- No ambiguous wording.
-- Cover important concepts.
-- Match the requested difficulty.
-- Mix recall, understanding and application where appropriate.
-- Do not claim questions are official past-paper questions.
-
-Short questions should include a concise answer.
-
-Keep explanations concise.
-"""
-
-
-# ============================================================
-# STAGE 4 — REVIEW
-# ============================================================
-
-def review_prompt(
-    request,
-    plan,
-    content,
-    assessment,
-):
-
-    return f"""
-STAGE 4 — QUALITY REVIEW
-
-Review the study material and assessment for accuracy and usefulness.
-
-REQUEST:
-{request}
-
-PLAN:
-{plan}
-
-CONTENT:
-{content}
-
-ASSESSMENT:
-{assessment}
-
-Check:
-
-1. Topic alignment
-2. Student-level alignment
-3. Important concept coverage
-4. Factual correctness
-5. Formula correctness
-6. MCQ answer correctness
-7. MCQ ambiguity
-8. Duplicate questions
-9. Missing important material
-10. Exam relevance
-11. Unsupported claims
-12. Formatting problems
-
-Return ONLY:
-
-## PASS
-Short list of things that are correct.
-
-## FIX
-List only actual problems.
-
-## REQUIRED CHANGES
-Give concise instructions for the final refinement stage.
-
-Do not rewrite the study pack.
-Do not repeat the full content.
-"""
-
-
-# ============================================================
-# STAGE 5 — FINAL REFINEMENT
-# ============================================================
-
-def refinement_prompt(
-    request,
-    plan,
-    content,
-    assessment,
-    review,
-):
-
-    return f"""
-STAGE 5 — FINAL STUDY PACK
-
-Create the final student-facing study pack.
-
-REQUEST:
-{request}
-
-COMPACT PLAN:
-{plan}
-
-LEARNING CONTENT:
-{content}
-
-ASSESSMENT:
-{assessment}
-
-QUALITY REVIEW:
-{review}
-
-Apply valid corrections from the review.
-
-Use exactly this structure:
-
-# AI Study Pack
-
-## 1. Study Overview
-Subject, topic, exam type, level and preparation time.
-
-## 2. Learning Objectives
-
-## 3. Topic Explanation
-
-## 4. Important Concepts
-
-## 5. Key Formulas / Facts
-
-## 6. High-Yield Points
-
-## 7. MCQs
-
-Include all requested MCQs with:
-- A/B/C/D options
-- Correct answer
-- Concise explanation
-
-## 8. Short-Answer Questions
-
-Include the requested questions and concise answers.
-
-## 9. Practice Questions
-
-Add a small number of useful practice questions.
-
-## 10. Common Mistakes
-
-## 11. Quick Revision Sheet
-
-## 12. Personalized Study Plan
-
-## 13. Final Exam Tips
-
-IMPORTANT:
-- Keep the final pack concise but complete.
-- Preserve the requested number of MCQs.
-- Preserve the requested number of short questions.
-- Do not remove important formulas or concepts.
-- Correct issues identified by the review.
-- Do not mention the internal workflow.
-- Do not claim generated questions are official past-paper questions.
-- Do not fabricate sources.
-"""
-    
-
-# ============================================================
-# REQUEST BUILDER
-# ============================================================
 
 def build_request_dict(
-    subject,
-    topic,
-    exam_type,
-    level,
-    preparation_time,
-    mcq_count,
-    mcq_difficulty,
-    short_question_count,
-    output_style,
-):
-
+    subject: str,
+    topic: str,
+    exam_type: str,
+    level: str,
+    preparation_time: str,
+    mcq_count: int,
+    mcq_difficulty: str,
+    short_question_count: int,
+    output_style: str,
+) -> dict:
+    """Build a clean request dictionary from user input form fields."""
     return {
         "subject": subject.strip(),
         "topic": topic.strip(),
@@ -339,3 +26,75 @@ def build_request_dict(
         "short_question_count": int(short_question_count),
         "output_style": output_style,
     }
+
+
+SYSTEM_PROMPT = """
+You are an expert academic curriculum designer, study-skills coach,
+and exam-preparation specialist.
+
+Your task is to generate a comprehensive, highly structured, and pedagogically
+sound study pack tailored specifically to the user's subject, topic, target exam,
+preparation timeframe, and academic level.
+
+Follow this 5-stage creation method internally:
+1. Planning: Structure a strategic study timeline based on the preparation time.
+2. Content Generation: Explain core principles, key definitions, formulas, and common pitfalls.
+3. Assessment: Create practice questions matching the target exam's style and difficulty.
+4. Review: Provide full answer keys, detailed step-by-step explanations, and scoring criteria.
+5. Refinement: Ensure clarity, accuracy, formatting, and high practical utility.
+
+Output guidelines:
+- Present clear markdown formatting.
+- Include structured sections for Study Strategy, Core Concepts, MCQ Practice, Short Questions (if requested), and Explanations.
+- Tailor the tone and depth to the student's stated level (Beginner, Intermediate, Advanced).
+"""
+
+
+def build_user_prompt(request: dict) -> str:
+    """Construct the final prompt sent to Groq Llama-3.3-70b."""
+    return f"""
+Generate a complete Study Pack using the details below:
+
+- Subject: {request['subject']}
+- Topic / Chapter: {request['topic']}
+- Target Exam: {request['exam_type']}
+- Student Level: {request['level']}
+- Preparation Time Available: {request['preparation_time']}
+- Number of MCQs Needed: {request['mcq_count']}
+- MCQ Difficulty: {request['mcq_difficulty']}
+- Number of Short Questions Needed: {request['short_question_count']}
+- Desired Output Style: {request['output_style']}
+
+Please ensure:
+1. A clear day-by-day or stage-by-stage study timeline.
+2. Conceptual summaries with clear headings.
+3. Exactly {request['mcq_count']} multiple-choice questions with options (A, B, C, D).
+4. Exactly {request['short_question_count']} short conceptual questions.
+5. A comprehensive Answer Key section containing explanations for all answers.
+"""
+
+
+def build_roadmap_request(subject, topic, level, prep_time, exam_type, output_style):
+    return {
+        "subject": subject,
+        "topic": topic,
+        "level": level,
+        "prep_time": prep_time,
+        "exam_type": exam_type,
+        "output_style": output_style,
+    }
+
+
+def get_direct_mcq_prompt(subject, topic, count, difficulty):
+    return f"""
+    You are an expert exam designer. Generate {count} Multiple-Choice Questions (MCQs) on the subject '{subject}', topic '{topic}'.
+    Difficulty: {difficulty}.
+
+    Return ONLY a valid JSON array of objects with keys:
+    - "id": integer
+    - "question": string
+    - "options": list of 4 strings
+    - "answer": string
+    - "explanation": string
+    Do NOT wrap in markdown syntax. Return raw JSON.
+    """
