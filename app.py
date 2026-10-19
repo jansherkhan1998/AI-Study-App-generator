@@ -129,11 +129,9 @@ def validate_inputs(
     if not topic.strip():
         return "Please enter a topic or chapter."
 
-    if not 1 <= int(mcq_count) <= 30:
+    if not 1 <= int(mcq_count) <= 200:
         return "MCQ count must be between 1 and 30."
 
-    if not 0 <= int(short_count) <= 15:
-        return "Short-answer count must be between 0 and 15."
 
     return None
 
@@ -202,18 +200,14 @@ with st.sidebar:
         [
             "MDCAT",
             "ECAT",
-            "NTS",
-            "NUST NET",
-            "GAT",
-            "CSS",
-            "University Exam",
-            "School/College Exam",
+            "NUMS",
+            "NUST(NET)",
             "Other",
         ],
     )
 
     level = st.selectbox(
-        "Student Level",
+        "Student Preparation Level",
         [
             "Beginner",
             "Intermediate",
@@ -221,22 +215,17 @@ with st.sidebar:
         ],
     )
 
-    preparation_time = st.selectbox(
-        "Available Preparation Time",
+    preparation_time = st.text_input(
+        "Preparation Time",
         [
-            "1 day",
-            "3 days",
-            "1 week",
-            "2 weeks",
-            "1 month",
-            "Custom",
+           placeholder="e.g. Number of Days, Weeks or Months",
         ],
     )
 
     mcq_count = st.slider(
         "Number of MCQs",
         min_value=1,
-        max_value=30,
+        max_value=200,
         value=10,
     )
 
@@ -249,14 +238,6 @@ with st.sidebar:
             "Mixed",
         ],
     )
-
-    short_question_count = st.slider(
-        "Number of Short Questions",
-        min_value=0,
-        max_value=15,
-        value=5,
-    )
-
     output_style = st.selectbox(
         "Output Style",
         [
