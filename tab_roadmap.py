@@ -1,5 +1,6 @@
 """
-Tab 1: Exam-Specific Roadmap Generator.
+Tab 1: Dynamic Exam Roadmap Generator
+Generates pattern-verified, chapter-mapped study schedules.
 """
 
 from datetime import date
@@ -8,9 +9,28 @@ from exam_data import EXAM_PATTERNS
 from workflow import call_groq_json, get_groq_api_key
 
 
+def calculate_section_count(days_remaining: int) -> tuple[int, str]:
+    """
+    Determines section count and strategic focus based on days remaining.
+    Returns (section_count, strategic_description)
+    """
+    if days_remaining <= 15:
+        return 4, "4-Phase Rapid Sprint (High-Yield Focus)"
+    elif days_remaining <= 30:
+        return 6, "6-Unit Chapter-Wise Acceleration"
+    elif days_remaining <= 60:
+        return 10, "10 Mini-Units (Frequent 5-6 Day Testing Loop)"
+    elif days_remaining <= 120:
+        return 14, "14 Weekly Milestones + Monthly Cumulative Mocks"
+    else:
+        return 16, "16-Section 3-Phase Loop (Foundation -> Mastery -> Final Sprint)"
+
+
 def render_roadmap_tab():
-    st.header("🗺️ Exam Preparation Roadmap Generator")
-    st.write("Generate an authenticated day-by-day study schedule aligned with official exam patterns.")
+    st.header("🗺️ Day-by-Day Exam Roadmap")
+    st.write(
+        "Generate a verified, chapter-mapped study schedule structured strictly according to official syllabus weightages."
+    )
 
     col1, col2 = st.columns(2)
 
@@ -22,67 +42,96 @@ def render_roadmap_tab():
         )
 
         if exam_type == "Custom Exam":
-            custom_exam_name = st.text_input("Custom Exam Name", placeholder="e.g. SAT / GRE", key="rm_custom_name")
+            custom_exam_name = st.text_input(
+                "Custom Exam Name", placeholder="e.g. SAT / GRE", key="rm_custom_name"
+            )
         else:
             custom_exam_name = exam_type
 
-        exam_date = st.date_input("Target Exam Date", min_value=date.today(), key="rm_exam_date")
-        days_left = (exam_date - date.today()).days
+        exam_date = st.date_input(
+            "Target Exam Date", min_value=date.today(), key="rm_exam_date"
+        )
+        days_left = max((exam_date - date.today()).days, 1)
 
-        if days_left <= 0:
-            st.warning("⚠️ Target exam date must be in the future.")
-            days_left = 1
+        section_count, strategy_label = calculate_section_count(days_left)
 
-        st.info(f"⏳ **Days Remaining Until Exam:** `{days_left} Days`")
+        st.info(
+            f"⏳ **Days Remaining:** `{days_left} Days`  \n"
+            f"📌 **Structure Strategy:** `{strategy_label}` (`{section_count} Sections`)"
+        )
 
     with col2:
-        daily_hours = st.slider("Daily Study Hours Available", min_value=1, max_value=12, value=4, key="rm_hours")
-        prep_level = st.selectbox("Current Preparation Level", ["Beginner", "Intermediate", "Advanced"], key="rm_level")
+        daily_hours = st.slider(
+            "Daily Available Hours",
+            min_value=1,
+            max_value=12,
+            value=4,
+            key="rm_hours",
+        )
+        prep_level = st.selectbox(
+            "Current Preparation Level",
+            ["Beginner", "Intermediate", "Advanced"],
+            key="rm_level",
+        )
 
-    # Display Official Pattern Overview
+    # Official Exam Breakdown Display
     st.markdown("---")
-    st.subheader(f"📋 Official Pattern: {custom_exam_name}")
+    st.subheader(f"📋 Pattern Overview: {custom_exam_name}")
 
     if exam_type in EXAM_PATTERNS:
         pattern = EXAM_PATTERNS[exam_type]
         st.write(f"**Total MCQs:** `{pattern['total_mcqs']}`")
 
-        # Display Subject Breakdown
         subj_cols = st.columns(len(pattern["subjects"]))
         for idx, (subj, info) in enumerate(pattern["subjects"].items()):
             with subj_cols[idx]:
-                st.metric(label=subj, value=f"{info['mcqs']} MCQs", delta=info["weightage"])
+                st.metric(
+                    label=subj,
+                    value=f"{info['mcqs']} MCQs",
+                    delta=info["weightage"],
+                )
     else:
-        st.info("ℹ️ Custom Exam selected. Enter custom details below or proceed with generation.")
+        st.info("ℹ️ Custom Exam selected. Proceed to generate schedule.")
 
     # Generate Action
     st.markdown("---")
-    if st.button("🚀 Generate Exam Roadmap", type="primary", key="btn_gen_roadmap"):
+    if st.button("🚀 Generate Detailed Roadmap", type="primary", key="btn_gen_roadmap"):
         api_key = get_groq_api_key()
         if not api_key:
-            st.error("GROQ_API_KEY missing. Add it in Streamlit Secrets.")
+            st.error("GROQ_API_KEY missing. Please configure it in Streamlit Secrets.")
             return
 
-        with st.spinner(f"Creating customized {days_left}-day roadmap for {custom_exam_name}..."):
-            pattern_str = (
+        with st.spinner(
+            f"Building {section_count}-section roadmap for {custom_exam_name} ({days_left} days)..."
+        ):
+            pattern_info = (
                 str(EXAM_PATTERNS.get(exam_type, {}))
                 if exam_type in EXAM_PATTERNS
-                else "Custom structure"
+                else "Custom Exam Pattern"
             )
 
             prompt = f"""
-            Generate a structured preparation roadmap for the exam '{custom_exam_name}'.
-            - Days remaining until exam: {days_left} days
-            - Available study hours per day: {daily_hours} hours/day
-            - Student preparation level: {prep_level}
-            - Official Subject Breakdown & Weightages: {pattern_str}
+            You are an expert academic strategy assistant. Create a granular study roadmap for '{custom_exam_name}'.
+            - Total Days Remaining: {days_left}
+            - Daily Study Time: {daily_hours} hours per day
+            - Current Student Level: {prep_level}
+            - Official Syllabus & Weightages: {pattern_info}
 
-            Divide the remaining preparation time into exactly 5 logical study sections leading up to the test.
-            Return ONLY a valid JSON array of 5 objects with keys:
+            RULES:
+            1. Divide the plan into EXACTLY {section_count} chronological sections/units.
+            2. Map specific syllabus chapters/units to each section according to official exam topic distributions.
+            3. Provide a clear daily study time budget matching {daily_hours} hours total per day.
+            4. Include concrete quantitative MCQ practice targets per subject.
+            5. Define explicit testing benchmarks and passing targets required before completing each section.
+
+            Return ONLY a valid JSON array of {section_count} objects. Each object MUST contain:
             - "section_number": integer
-            - "title": string (e.g., Section 1: Days 1-5 - Biology & Chemistry Fundamentals)
-            - "key_concepts": list of strings (specific subtopics to study)
-            - "recommended_focus": string (strategy for this timeframe)
+            - "title": string (e.g. "Section 1: Days 1-10 - Cell Biology & Fundamental Chemistry")
+            - "chapters_covered": list of strings (specific chapter topics)
+            - "daily_time_split": dictionary mapping activity name to hours (e.g. {{"Concept Reading": "2.0 hrs", "MCQ Practice": "2.0 hrs"}})
+            - "practice_targets": list of strings (e.g. ["Biology: 120 MCQs", "Chemistry: 80 MCQs"])
+            - "testing_target": string (e.g. "Take 1 Section Test covering Chapters 1-3")
+            - "target_pass_score": string (e.g. "Score >= 75% accuracy")
             """
 
             try:
@@ -90,20 +139,40 @@ def render_roadmap_tab():
                 st.session_state["roadmap_sections"] = sections
                 st.session_state["roadmap_exam"] = custom_exam_name
                 st.session_state["roadmap_days_left"] = days_left
-                st.success("Roadmap generated successfully! Proceed to Tab 2 for Sectional Tests.")
+                st.session_state["roadmap_section_count"] = section_count
+                st.success("Roadmap successfully generated!")
             except Exception as e:
-                st.error(f"Failed to generate roadmap: {e}")
+                st.error(f"Error generating roadmap: {e}")
 
-    # Display Active Roadmap
+    # Display Output
     if "roadmap_sections" in st.session_state:
         st.markdown("---")
         st.subheader(
-            f"📅 Study Schedule for {st.session_state.get('roadmap_exam')} ({st.session_state.get('roadmap_days_left')} Days Timeline)"
+            f"📅 Active Plan: {st.session_state.get('roadmap_exam')} "
+            f"({st.session_state.get('roadmap_days_left')} Days | {st.session_state.get('roadmap_section_count')} Sections)"
         )
 
         for sec in st.session_state["roadmap_sections"]:
-            with st.expander(f"Section {sec['section_number']}: {sec['title']}", expanded=True):
-                st.write(f"**Recommended Strategy:** {sec['recommended_focus']}")
-                st.write("**Key Topics Covered:**")
-                for item in sec["key_concepts"]:
-                    st.write(f"- {item}")
+            with st.expander(
+                f"📌 Section {sec.get('section_number')}: {sec.get('title')}",
+                expanded=False,
+            ):
+                col_left, col_right = st.columns([2, 1])
+
+                with col_left:
+                    st.markdown("**📖 Specific Chapters & Topics:**")
+                    for ch in sec.get("chapters_covered", []):
+                        st.write(f"- {ch}")
+
+                    st.markdown("**🎯 Daily MCQ Practice Volume:**")
+                    for pt in sec.get("practice_targets", []):
+                        st.write(f"- {pt}")
+
+                with col_right:
+                    st.markdown("**⏱️ Daily Time Allocation:**")
+                    for activity, hrs in sec.get("daily_time_split", {}).items():
+                        st.write(f"- **{activity}:** `{hrs}`")
+
+                    st.markdown("---")
+                    st.markdown(f"**📝 Test Required:** {sec.get('testing_target', 'Section Quiz')}")
+                    st.markdown(f"**📊 Target Pass Score:** `{sec.get('target_pass_score', '>= 75%')}`")
