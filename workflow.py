@@ -50,6 +50,7 @@ def call_groq_stage(
             {"role": "user", "content": user_prompt},
         ],
         temperature=0.3,
+        max_tokens=8192,
     )
     return str(response.choices[0].message.content)
 
@@ -164,6 +165,7 @@ def call_groq_json(prompt: str, api_key: str) -> list:
             {"role": "user", "content": prompt},
         ],
         temperature=0.3,
+        max_tokens=8192,
     )
 
     raw_text = response.choices[0].message.content.strip()
