@@ -39,7 +39,7 @@ def render_roadmap_tab():
 
         st.info(
             f"⏳ **Days Remaining:** `{days_left} Days` \n"
-            f"📌 **Structure Strategy:** `Nested 3-Phase Roadmap`"
+            f"📌 **Structure Strategy:** `Nested 3-Phase Architecture`"
         )
 
     with col2:
@@ -99,15 +99,16 @@ def render_roadmap_tab():
             - Current Student Level: {prep_level}
             - Official Syllabus & Weightages: {pattern_info}
 
-            RULES FOR STRUCTURE:
-            1. Divide the overall schedule strictly into 3 Macro-Phases:
+            RULES FOR STRUCTURE & PEDAGOGY:
+            1. Divide the overall schedule strictly into EXACTLY 3 Macro-Phases:
                - Phase 1: Foundation & Core Coverage (~50% of total days)
                - Phase 2: High-Yield Mastery & Mixed Drills (~30% of total days)
                - Phase 3: Final Sprint & Full Simulations (~20% of total days)
-            2. Inside each Phase, break down the schedule into 2 to 4 manageable "blocks" (e.g., Week 1-2, Block 1).
-            3. Inside each Block, map specific named syllabus chapters and sub-topics for each core subject.
-            4. NEVER use generic placeholders like "High-Yield Topics", "General Review", or "Final Prep". Always name concrete textbook chapters/topics (e.g. "Biology: Bioenergetics - Light & Dark Reactions", "Chemistry: Stoichiometry & Limiting Reactants").
-            5. Provide daily time splits, quantitative practice targets, and explicit testing benchmarks that will feed into evaluation.
+            2. Inside each Phase, break down the schedule into 2 to 4 manageable "blocks" (e.g., Block 1: Days 1-14).
+            3. Inside each Block, map specific named syllabus chapters and sub-topics for every core subject.
+            4. STRICT NO-PLACEHOLDER RULE: NEVER use generic terms like "High-Yield Topics", "General Review", or "Final Prep". Every subject entry MUST name explicit textbook chapters/topics (e.g., "Biology: Genetics & Mendelian Laws", "Chemistry: Chemical Kinetics & Rate Equations").
+            5. REALISTIC PRACTICE VOLUMES: Practice targets must be substantial and realistic for a {daily_hours}-hour daily study budget (e.g., 25-50 MCQs per core subject daily). NEVER give trivial targets like 2 or 4 MCQs.
+            6. TITLE FORMATTING: Do NOT put prefix words like "Section X" or "Phase X" inside block titles. Use clean descriptive names like "Block 1: Days 1-12 (Cellular & Atomic Foundations)".
 
             Return ONLY a valid JSON array containing EXACTLY 3 objects corresponding to the 3 Macro-Phases.
 
@@ -116,29 +117,42 @@ def render_roadmap_tab():
               {{
                 "phase_number": 1,
                 "phase_name": "Phase 1: Foundation & Core Coverage",
-                "days_range": "Days 1 - X",
+                "days_range": "Days 1 - 90",
                 "phase_objective": "Comprehensive coverage of core concepts and foundational problem-solving.",
                 "blocks": [
                   {{
-                    "block_title": "Block 1: Days 1-7 (Fundamental Concepts)",
+                    "block_title": "Block 1: Days 1-12 (Cellular & Atomic Foundations)",
                     "daily_schedule": [
                       {{
-                        "day_label": "Day 1-2",
+                        "day_label": "Days 1-3",
                         "subject_topics": [
                           "Biology: Cell Structure & Organelles",
-                          "Chemistry: Stoichiometry & Mole Calculations",
-                          "Physics: Scalars, Vectors & Equilibrium"
+                          "Chemistry: Atomic Structure & Quantum Numbers",
+                          "Physics: Kinematics & Vectors"
                         ],
                         "daily_hours_breakdown": {{"Concept Reading": "2.0 hrs", "MCQ Practice": "2.0 hrs"}},
-                        "daily_mcq_target": ["Biology: 30 MCQs", "Chemistry: 20 MCQs", "Physics: 20 MCQs"]
+                        "daily_mcq_target": ["Biology: 35 MCQs", "Chemistry: 25 MCQs", "Physics: 20 MCQs"]
                       }}
                     ],
-                    "block_testing_target": "Chapter Quiz: Cell Bio, Stoichiometry, & Vectors",
+                    "block_testing_target": "Cumulative Quiz: Cell Bio, Atomic Structure, & Kinematics",
                     "target_pass_score": "Score >= 75% accuracy"
                   }}
                 ]
               }},
-              ... (Repeat for Phase 2 and Phase 3)
+              {{
+                "phase_number": 2,
+                "phase_name": "Phase 2: High-Yield Mastery & Mixed Drills",
+                "days_range": "Days 91 - 150",
+                "phase_objective": "Reinforcing weak areas, cross-subject integration, and speed drills.",
+                "blocks": [...]
+              }},
+              {{
+                "phase_number": 3,
+                "phase_name": "Phase 3: Final Sprint & Full Simulations",
+                "days_range": "Days 151 - {days_left}",
+                "phase_objective": "Full-length mock exams, high-yield active recall, and exam-day pacing.",
+                "blocks": [...]
+              }}
             ]
             """
 
